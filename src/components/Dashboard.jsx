@@ -5,7 +5,14 @@ import { IoLogOut } from "react-icons/io5";
 import { MdDelete } from "react-icons/md";
 import { CgProfile } from "react-icons/cg";
 import { FaFolderClosed } from "react-icons/fa6";
-import { FaArrowCircleUp } from "react-icons/fa";
+// // import { FaArrowCircleUp } from "react-icons/fa";
+// import { BsFiletypePptx } from "react-icons/bs";
+// import { FaRegFilePdf } from "react-icons/fa6";
+// import { BsFiletypeXlsx } from "react-icons/bs";
+// import { FaRegFileWord } from "react-icons/fa";
+// // import { FaFolderOpen } from "react-icons/fa";
+// import { FaFile } from "react-icons/fa";
+// import { SiMicrosoftexcel } from "react-icons/si";
 
 import Modal from "react-bootstrap/Modal";
 
@@ -16,8 +23,10 @@ function Dashboard() {
   const [fileUploads, setFileUploads] = useState(false);
   const user = JSON.parse(localStorage.getItem("user"));
   const [showModal, setShowModal] = useState(false);
+  const [fileSep, setFileSep] = useState([]);
+  const [loader, setLoader] = useState(false);
 
-
+console.log(fileSep);
 
   useEffect(() => {
     const fetchFolders = async () => {
@@ -32,7 +41,6 @@ function Dashboard() {
           }
         );
         console.log(response);
-        console.log("----------------------------->>");
         if (response.data.folders) {
           setFolders(response.data.folders);
           localStorage.setItem(
@@ -51,8 +59,137 @@ function Dashboard() {
     } else {
       fetchFolders();
     }
+
+
+    const fetchFiles = async () => {
+      try {
+        const response = await axios.get("http://localhost/backendPHP/api.php", {
+          params: {
+            action: "get_files_sep",
+            user_id: user.userId, // Pass the user_id from localStorage
+          },
+        });
+
+        if (response.data.files) {
+          const userFiles = response.data.files; // Store the user files from the API response
+          setFileSep(userFiles);
+          localStorage.setItem("fileSep", JSON.stringify(userFiles)); // Store files in localStorage
+        }
+      } catch (error) {
+        console.error("Error fetching files:", error);
+      }
+    };
+
+    // Retrieve files from localStorage if available
+    const storedFiles = localStorage.getItem("fileSep");
+    if (storedFiles) {
+      setFileSep(JSON.parse(storedFiles)); // Set the files from localStorage
+    } else {
+      fetchFiles(); // Fetch files if not available in localStorage
+    }
   }, [user.userId]);
 
+
+  // const renderFileTypeIcon = (fileName) => {
+  //   const fileExtension = fileName.split(".").pop().toLowerCase(); // Extract file extension
+
+  //   switch (fileExtension) {
+  //     case "pptx":
+  //       return <BsFiletypePptx color="red" />;
+  //     case "pdf":
+  //       return <FaRegFilePdf color="blue" />;
+  //     case "xlsx":
+  //       return <BsFiletypeXlsx color="green" />;
+  //     case "docx":
+  //       return <FaRegFileWord color="violet" />;
+  //     case "xls":
+  //       return <SiMicrosoftexcel color="info" />;
+  //     default:
+  //       return <FaFile />;
+  //   }
+  // };
+
+
+  const handleFileUploadSep = async (event) => {
+    setLoader(true); // Show loader while uploading file
+    const file = event.target.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("user_id", user.userId); // Attach user_id when uploading a file
+
+    try {
+      const response = await axios.post(
+        "http://localhost/backendPHP/api.php",
+        formData,
+        {
+          params: {
+            action: "upload_file_sep",
+          },
+        }
+      );
+
+      console.log(response);
+
+      if (response.data.status === "success") {
+        const newFile = {
+          file_name: file.name,
+          file_path: response.data.file_path,
+          id: response.data.fileId,
+        };
+
+        const updatedFiles = [...fileSep, newFile];
+        setFileSep(updatedFiles); // Update the files state
+        setLoader(false); // Hide the loader
+        localStorage.setItem("fileSep", JSON.stringify(updatedFiles)); // Update files in localStorage
+        event.target.value = ""; // Clear the input after upload
+      } else {
+        alert("File upload failed");
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      alert("Error uploading file");
+    }
+  };
+
+  const handleFileDeleteSep = async (fileId) => {
+    console.log(fileId)
+    try {
+      const response = await axios.get("http://localhost/backendPHP/api.php", {
+        params: {
+          action: "delete_file_sep",
+          file_id: fileId, // Pass the fileId to delete
+          user_id: user.userId, // Pass user_id from localStorage
+        },
+      });
+     console.log(response);
+      if (response.data.status == "success") {
+        // Filter out the deleted file from the state and localStorage
+        const updatedFiles = fileSep.filter((file) => file.id !== fileId);
+        setFileSep(updatedFiles); // Update the state
+        localStorage.setItem("fileSep", JSON.stringify(updatedFiles)); // Update localStorage
+      } else {
+        alert("File deletion failed");
+      }
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      alert("Error deleting file");
+    }
+  };
+
+  const handleFileDownloadSep = async (filePath) => {
+    const response = await axios.get("http://localhost/backendPHP/api.php", {
+      params: { action: "download_file_sep", file_path: filePath },
+      responseType: "blob", // Set response type to blob for file download
+    });
+
+    // Create a link element to download the file
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filePath.split("/").pop());
+    document.body.appendChild(link);
+    link.click();
+  };
 
 
   const handleFolderClick = async (folderId) => {
@@ -102,7 +239,7 @@ function Dashboard() {
     link.click();
   };
 
-
+  
 
   const handleFileDelete = async (fileId) => {
     const response = await axios.get("http://localhost/backendPHP/api.php", {
@@ -161,41 +298,41 @@ function Dashboard() {
 
 
 
-const handleFolderUpload = async (event) => {
-  const folderName = prompt("Enter folder name for uploaded files:");
-  if (folderName) {
-      const formData = new FormData();
-      formData.append("user_id", user.userId);
-      formData.append("folder_name", folderName);
+// const handleFolderUpload = async (event) => {
+//   const folderName = prompt("Enter folder name for uploaded files:");
+//   if (folderName) {
+//       const formData = new FormData();
+//       formData.append("user_id", user.userId);
+//       formData.append("folder_name", folderName);
 
-      Array.from(event.target.files).forEach((file) => {
-          formData.append("files[]", file);
-      });
+//       Array.from(event.target.files).forEach((file) => {
+//           formData.append("files[]", file);
+//       });
 
-      const response = await axios.post(
-          "http://localhost/backendPHP/api.php?action=upload_folder",
-          formData,
-          { headers: { "Content-Type": "multipart/form-data" } }
-      );
+//       const response = await axios.post(
+//           "http://localhost/backendPHP/api.php?action=upload_folder",
+//           formData,
+//           { headers: { "Content-Type": "multipart/form-data" } }
+//       );
 
-      if (response.data.status === "success") {
-          const newFolder = {
-              id: response.data.folder_id,
-              folder_name: folderName,
-              folder_path: response.data.folder_path
-          };
+//       if (response.data.status === "success") {
+//           const newFolder = {
+//               id: response.data.folder_id,
+//               folder_name: folderName,
+//               folder_path: response.data.folder_path
+//           };
 
-          const updatedFolders = [...folders, newFolder];
-          setFolders(updatedFolders);
+//           const updatedFolders = [...folders, newFolder];
+//           setFolders(updatedFolders);
 
-          // Save updated folders to local storage
-          localStorage.setItem("folders", JSON.stringify(updatedFolders));
-          alert("Folder and files uploaded successfully");
-      } else {
-          alert(response.data.message);
-      }
-  }
-};
+//           // Save updated folders to local storage
+//           localStorage.setItem("folders", JSON.stringify(updatedFolders));
+//           alert("Folder and files uploaded successfully");
+//       } else {
+//           alert(response.data.message);
+//       }
+//   }
+// };
 
 
 
@@ -253,7 +390,7 @@ const handleFolderUpload = async (event) => {
         </div>
       </div>
       <div className="d-flex justify-content-between">
-        <form id="uploadForm" encType="multipart/form-data" method="POST">
+        {/* <form id="uploadForm" encType="multipart/form-data" method="POST">
           <div className="upload-btn-wrapper ms-2">
             <button className="btn">Upload a folder</button>
             <input
@@ -264,7 +401,24 @@ const handleFolderUpload = async (event) => {
               onChange={handleFolderUpload}
             />
           </div>
-        </form>
+        </form> */}
+
+
+<div className="d-flex">
+        <div className="upload-btn-wrapper">
+          <button className="btn">Upload a file</button>
+          <input type="file" onChange={handleFileUploadSep} name="myfile" />
+        </div>
+        {loader && (
+          <div
+            className="spinner-border border-2 light-spinner ms-3 mt-1"
+            style={{ width: "1.5rem", height: "1.5rem", color: "#7C3784" }}
+            role="status"
+          >
+            <span className="sr-only"></span>
+          </div>
+        )}
+      </div>
 
         <div>
           <button className="btn" onClick={handleCreateFolder}>
@@ -293,7 +447,7 @@ const handleFolderUpload = async (event) => {
                     <>
                       {" "}
                       <FaFolderOpen className="me-3 " role="button" />{" "}
-                      {folder.folder_name} <FaArrowCircleUp color="#7e3986" />
+                      {folder.folder_name} 
                     </>
                   ) : (
                     <>
@@ -315,14 +469,14 @@ const handleFolderUpload = async (event) => {
                 <td>
                   <div className="d-flex justify-content-around">
                     <a onClick={() => openDeleteModal(folder.id)}>
-                      <MdDelete color="red" size={24} />
+                      <MdDelete color="#fea9a9" />
                     </a>
                     <a
                       href={`http://localhost/backendPHP/api.php?action=download_folder&folder_id=${folder.id}&user_id=${user.userId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <FaDownload color="blue" size={24} />
+                      <FaDownload color="7C3784"  />
                     </a>
                   </div>
                 </td>
@@ -331,6 +485,52 @@ const handleFolderUpload = async (event) => {
           )}
         </tbody>
       </table>
+
+      <table>
+        <thead>
+          <tr>
+            <th>File Name</th>
+            <th colSpan="2">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fileSep.length === 0 ? (
+            <tr>
+              <td colSpan="4">No files available</td>
+            </tr>
+          ) : (
+            fileSep.map((file) => (
+
+              
+              <tr key={file.id}>
+                <td>
+                   {file.file_name}
+                </td>
+                <td className="d-flex justify-content-around">
+                  <a
+                    onClick={() => handleFileDownloadSep(file.file_path)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FaDownload />
+                  </a>
+                  <a
+                    
+                   onClick={() => handleFileDeleteSep(file.id)
+                   
+                   }
+                   style={{ cursor: "pointer", color: "#fea9a9" }}
+                   >
+
+                    <MdDelete/>           
+                  </a>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
       <hr></hr>
       {selectedFolderId ? (
         <div>
@@ -351,17 +551,17 @@ const handleFolderUpload = async (event) => {
               ) : (
                 files.map((file) => (
                   <tr key={file.id}>
-                    <td>{file.file_name}</td>
+                    <td> {file.file_name}</td>
                     <td>
-                      <FaDownload
+                      <FaDownload 
                         onClick={() => handleFileDownload(file.file_path)}
-                        style={{ cursor: "pointer" }}
+                        style={{ cursor: "pointer", color:"7C3784"}}
                       />
                     </td>
                     <td>
-                      <MdDelete
+                      <MdDelete 
                         onClick={() => handleFileDelete(file.id)}
-                        style={{ cursor: "pointer", color: "red" }}
+                        style={{ cursor: "pointer", color: "#fea9a9" }}
                       />
                     </td>
                   </tr>
